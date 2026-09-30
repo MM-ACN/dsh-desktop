@@ -11,7 +11,8 @@ const CONVERSATION_SCROLL = '[data-conversation-scroll]'
 /** Element double that answers `closest` and carries a scroll position. */
 class FakeElement {
   scrollTop = 0
-  constructor(private readonly chain: (selector: string) => FakeElement | null) {}
+  private readonly chain: (selector: string) => FakeElement | null
+  constructor(chain: (selector: string) => FakeElement | null) { this.chain = chain }
   closest(selector: string): FakeElement | null { return this.chain(selector) }
 }
 
@@ -99,11 +100,13 @@ describe('page-key scroll guard', () => {
     fire('scroll', { target: scroller })
     expect(scroller.scrollTop).toBe(2100)
 
-    // Back in the composer: an unrelated scroller is left alone as well.
+    // Back in the composer: only this scroller is held, and only at its own position.
     document.activeElement = caretInComposer(scroller) as unknown as Element
+    scroller.scrollTop = 1400
     fire('keydown', { key: 'PageUp' })
     fire('scroll', { target: new FakeElement(() => null) })
-    expect(scroller.scrollTop).toBe(2100)
+    expect(scroller.scrollTop).toBe(1400)
+    scroller.scrollTop = 2300
     fire('scroll', { target: scroller })
     expect(scroller.scrollTop).toBe(1400)
   })
@@ -166,7 +169,8 @@ describe('page-key scroll guard', () => {
   })
 
   it('installs nothing without a document', () => {
-    expect(typeof document).toBe('undefined')
+    // A runtime without a DOM has no document at all: the guard must not touch one.
+    vi.stubGlobal('document', undefined)
     const dispose = installPageKeyScrollGuard()
     expect(dispose).toBeTypeOf('function')
     expect(() => { dispose() }).not.toThrow()
