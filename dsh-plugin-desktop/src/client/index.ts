@@ -11,6 +11,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only service convergence for the launch-folder bridge's scoped inject.
 import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import { registerDesktopOnboarding } from './onboarding.tsx'
+import { createElement } from 'react'
+import { SetupWizardApp, type EmbeddedSetupWizard } from '../native-ui/setup-wizard/App.tsx'
+import './onboarding.css'
 import { applyAdvancedShell } from './advanced-shell.ts'
 import { startRendererBootReporter } from './boot-health.ts'
 import { applyDesktopSettings } from './desktop-settings.ts'
@@ -18,6 +22,7 @@ import { installDesktopDirectoryPickerBridge } from './directory-picker.ts'
 import { parseDesktopClientEnvironment } from './environment.ts'
 import { applyExtendedShell } from './extended-shell.ts'
 import { installDesktopLaunchWorkspaceBridge } from './launch-workspace.ts'
+import { installPageKeyScrollGuard } from './page-key-scroll-guard.ts'
 import { DESKTOP_SETTINGS_FORMS_SERVICE } from './settings-bridge.ts'
 import { installSidebarFooterStyles } from './sidebar-footer-styles.ts'
 import { desktopWindowService, provideDesktopWindow } from './window-service.ts'
@@ -128,11 +133,19 @@ export function apply(ctx: ClientContext): void {
     'dsh-plugin-desktop: native window geometry service',
   )
   const desktopSettings = applyDesktopSettings(ctx, environment)
+  registerDesktopOnboarding(ctx, (snapshot, locale, finish, renderNavigation) => createElement<{ embedded?: EmbeddedSetupWizard }>(SetupWizardApp, {
+    embedded: { input: snapshot.input, locale, renderNavigation, finish: selection => finish(snapshot.profile, selection) },
+  }))
   // Every mode shares the footer seat: upstream's row flex would otherwise let
   // two launchers crush each other, and compatibility mode installs no frame styles.
   ctx.effect(
     () => installSidebarFooterStyles(),
     'dsh-plugin-desktop: sidebar footer stacking styles',
+  )
+  // Page keys belong to the composer that owns the caret, not to the transcript behind it.
+  ctx.effect(
+    () => installPageKeyScrollGuard(),
+    'dsh-plugin-desktop: page-key scroll guard',
   )
   ctx.effect(
     () => startRendererBootReporter(ctx.loader),
